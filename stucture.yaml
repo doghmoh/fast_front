@@ -1,0 +1,38 @@
+projectName: tmd-dashboard
+defaultRoute: home
+auth: true
+layout:
+  withSidebar: true
+  withHeader: true
+  contentLayout:
+    props:
+      title: string
+      subtitle: string
+      onAdd: function
+      addLabel: string
+
+entities:
+  - name: products
+    label: Produits
+    isCrud: true
+    path: /products
+
+  - name: orders
+    label: Commandes
+    isCrud: true
+    path: /orders
+
+  - name: clients
+    label: Clients
+    isCrud: true
+    path: /clients
+
+  - name: dashboard
+    label: Tableau de bord
+    isCrud: false
+    path: /
+
+  - name: settings
+    label: Paramètres
+    isCrud: false
+    path: /settings
