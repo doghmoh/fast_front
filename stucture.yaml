@@ -13,26 +13,21 @@ layout:
 
 entities:
   - name: products
+    route: /products
+    crud: true
     label: Produits
-    isCrud: true
-    path: /products
 
   - name: orders
+    route: /orders
+    crud: true
     label: Commandes
-    isCrud: true
-    path: /orders
 
-  - name: clients
+  - name: customers
+    route: /customers
+    crud: true
     label: Clients
-    isCrud: true
-    path: /clients
 
   - name: dashboard
+    route: /
+    crud: false
     label: Tableau de bord
-    isCrud: false
-    path: /
-
-  - name: settings
-    label: Paramètres
-    isCrud: false
-    path: /settings

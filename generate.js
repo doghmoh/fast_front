@@ -1,107 +1,140 @@
-// generate.js
-const fs = require("fs");
-const path = require("path");
-const yaml = require("js-yaml");
+import fs from "fs";
+import path from "path";
+import yaml from "js-yaml";
+import { fileURLToPath } from "url";
+import { dirname } from "path";
 
-const capitalize = (s) => s.charAt(0).toUpperCase() + s.slice(1);
-const baseDir = path.join(__dirname, "src", "components");
+// Resolve __dirname in ESM
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
 
-function generateCRUDFiles(entity, label, fields) {
-  const Entity = capitalize(entity);
+// Load and parse YAML config
+const configPath = path.join(__dirname, "project.yaml");
+const config = yaml.load(fs.readFileSync(configPath, "utf8"));
 
-  const pageContent = `import React from "react";
-import EntityPage from "../../shared/crud/EntityPage";
-import ${Entity}List from "./${Entity}List";
-import ${Entity}Form from "./${Entity}Form";
+const baseSrc = path.join(__dirname, "src");
+const foldersToCreate = [
+  "components/navigation",
+  "contexts",
+  "hooks",
+  "layout",
+  "utils",
+];
 
-const ${Entity}Page = () => (
-  <EntityPage
-    title="${label}"
-    subtitle="Liste des ${label.toLowerCase()}"
-    ListComponent={${Entity}List}
-    FormComponent={${Entity}Form}
-  />
-);
-
-export default ${Entity}Page;
-`;
-
-  const listContent = `import React from "react";
-
-const ${Entity}List = () => {
-  return <div>Liste de ${label}</div>;
-};
-
-export default ${Entity}List;
-`;
-
-  const formContent = `import React from "react";
-
-const ${Entity}Form = ({ onSubmit, defaultValues }) => {
-  return <form onSubmit={onSubmit}>Formulaire ${label}</form>;
-};
-
-export default ${Entity}Form;
-`;
-
-  return { pageContent, listContent, formContent };
-}
-
-function generateSimpleComponent(entity, label) {
-  const Entity = capitalize(entity);
-  return `import React from "react";
-
-const ${Entity} = () => {
-  return <div>${label}</div>;
-};
-
-export default ${Entity};
-`;
-}
-
-function generateCRUDStructure(entity, label, fields) {
-  const dir = path.join(baseDir, entity);
-  if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
-
-  const { pageContent, listContent, formContent } = generateCRUDFiles(
-    entity,
-    label,
-    fields
-  );
-
-  const capital = capitalize(entity);
-  fs.writeFileSync(path.join(dir, `${capital}Page.tsx`), pageContent);
-  fs.writeFileSync(path.join(dir, `${capital}List.tsx`), listContent);
-  fs.writeFileSync(path.join(dir, `${capital}Form.tsx`), formContent);
-
-  fs.writeFileSync(
-    path.join(dir, "index.tsx"),
-    `export { default } from "./${capital}Page";`
-  );
-}
-
-function generateNonCRUD(entity, label) {
-  const dir = path.join(baseDir, entity);
-  if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
-  const capital = capitalize(entity);
-  const content = generateSimpleComponent(entity, label);
-  fs.writeFileSync(path.join(dir, `${capital}.tsx`), content);
-  fs.writeFileSync(path.join(dir, `index.tsx`), `export { default } from "./${capital}";`);
-}
-
-function main() {
-  const file = path.join(__dirname, "project.yaml");
-  const config = yaml.load(fs.readFileSync(file, "utf8"));
-
-  for (const entity of config.entities) {
-    if (entity.crud) {
-      generateCRUDStructure(entity.name, entity.label, entity.fields);
-    } else {
-      generateNonCRUD(entity.name, entity.label);
-    }
+// Create base folders
+foldersToCreate.forEach((folder) => {
+  const fullPath = path.join(baseSrc, folder);
+  if (!fs.existsSync(fullPath)) {
+    fs.mkdirSync(fullPath, { recursive: true });
+    console.log(`✅ Created: ${fullPath}`);
   }
+});
 
-  console.log("✅ Project structure generated!");
+// Utility: Create file with content
+const writeFile = (filePath, content) => {
+  if (!fs.existsSync(filePath)) {
+    fs.writeFileSync(filePath, content, "utf8");
+    console.log(`📄 Created: ${filePath}`);
+  }
+};
+
+// Generate entities (CRUD modules or static pages)
+config.entities.forEach((entity) => {
+  const { name, crud, route, label } = entity;
+  const folderName = name.toLowerCase();
+  const compFolder = path.join(baseSrc, "components", folderName);
+
+  fs.mkdirSync(compFolder, { recursive: true });
+
+  const pageName = `${folderName}Page.tsx`;
+  const listName = `${folderName}Table.tsx`;
+  const formName = `${folderName}Form.tsx`;
+
+  // Create Page
+  writeFile(
+    path.join(compFolder, pageName),
+    `import React, { useState } from "react";
+import ContentLayout from "../layout/ContentLayout";
+import ${capitalize(folderName)}Form from "./${folderName}Form";
+import ${capitalize(folderName)}Table from "./${folderName}Table";
+
+const ${capitalize(folderName)}Page = () => {
+  const [showForm, setShowForm] = useState(false);
+  const [selected, setSelected] = useState(null);
+
+  return (
+    <ContentLayout
+      title="${label}"
+      subtitle="Gestion de ${label.toLowerCase()}"
+      onAdd={() => {
+        setSelected(null);
+        setShowForm(true);
+      }}
+      addLabel="Ajouter"
+    >
+      <${capitalize(folderName)}Table
+        onEdit={(item) => {
+          setSelected(item);
+          setShowForm(true);
+        }}
+      />
+      {showForm && (
+        <${capitalize(folderName)}Form
+          item={selected}
+          onClose={() => setShowForm(false)}
+        />
+      )}
+    </ContentLayout>
+  );
+};
+
+export default ${capitalize(folderName)}Page;
+`
+  );
+
+  // Create List/Table
+  if (crud) {
+    writeFile(
+      path.join(compFolder, listName),
+      `import React from "react";
+
+const ${capitalize(folderName)}Table = ({ onEdit }) => {
+  return <div>Table de ${label}</div>;
+};
+
+export default ${capitalize(folderName)}Table;
+`
+    );
+
+    // Create Form
+    writeFile(
+      path.join(compFolder, formName),
+      `import React from "react";
+
+const ${capitalize(folderName)}Form = ({ item, onClose }) => {
+  return <div>Formulaire de ${label}</div>;
+};
+
+export default ${capitalize(folderName)}Form;
+`
+    );
+  } else {
+    // Not CRUD: Only basic page
+    writeFile(
+      path.join(compFolder, `${folderName}Page.tsx`),
+      `import React from "react";
+
+const ${capitalize(folderName)}Page = () => {
+  return <div>${label} content here</div>;
+};
+
+export default ${capitalize(folderName)}Page;
+`
+    );
+  }
+});
+
+// Helper to capitalize component names
+function capitalize(str) {
+  return str.charAt(0).toUpperCase() + str.slice(1);
 }
-
-main();
