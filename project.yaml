@@ -26,8 +26,3 @@ entities:
     route: /customers
     crud: true
     label: Clients
-
-  - name: dashboard
-    route: /
-    crud: false
-    label: Tableau de bord

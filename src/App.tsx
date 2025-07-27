@@ -11,6 +11,9 @@ import { ToastContainer } from "react-toastify";
 import Loader from "./components/Loader";
 import Home from "./components/Home";
 import Header from "./components/Header";
+// AUTO-GENERATED IMPORTS START
+import EntityPage from '@components/shared/EntityPage';
+// AUTO-GENERATED IMPORTS END
 
 const App = () => {
   const { user, logout, isAuthLoading } = useAuth();
@@ -27,7 +30,11 @@ const App = () => {
               <Header />
               <Routes>
                 <Route path="/" element={<Home />} />
-                {/* Catch-all route for 404 */}
+                {/* AUTO-GENERATED ROUTES START */}
+  <Route path="/products" element={<EntityPage entityName="products" />} />
+  <Route path="/orders" element={<EntityPage entityName="orders" />} />
+  <Route path="/customers" element={<EntityPage entityName="customers" />} />
+{/* AUTO-GENERATED ROUTES END */}
                 <Route path="*" element={<Navigate to="/" />} />
               </Routes>
             </div>

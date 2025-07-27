@@ -1,140 +1,124 @@
 import fs from "fs";
 import path from "path";
 import yaml from "js-yaml";
-import { fileURLToPath } from "url";
-import { dirname } from "path";
 
-// Resolve __dirname in ESM
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = dirname(__filename);
+const capitalize = (str) => str.charAt(0).toUpperCase() + str.slice(1);
+const projectPath = process.cwd();
 
-// Load and parse YAML config
-const configPath = path.join(__dirname, "project.yaml");
-const config = yaml.load(fs.readFileSync(configPath, "utf8"));
+const readYAML = () => {
+  const file = path.join(projectPath, "project.yaml");
+  const data = fs.readFileSync(file, "utf-8");
+  return yaml.load(data);
+};
 
-const baseSrc = path.join(__dirname, "src");
-const foldersToCreate = [
-  "components/navigation",
-  "contexts",
-  "hooks",
-  "layout",
-  "utils",
-];
+const createDir = (dirPath) => {
+  if (!fs.existsSync(dirPath)) fs.mkdirSync(dirPath, { recursive: true });
+};
 
-// Create base folders
-foldersToCreate.forEach((folder) => {
-  const fullPath = path.join(baseSrc, folder);
-  if (!fs.existsSync(fullPath)) {
-    fs.mkdirSync(fullPath, { recursive: true });
-    console.log(`✅ Created: ${fullPath}`);
-  }
-});
-
-// Utility: Create file with content
 const writeFile = (filePath, content) => {
-  if (!fs.existsSync(filePath)) {
-    fs.writeFileSync(filePath, content, "utf8");
-    console.log(`📄 Created: ${filePath}`);
-  }
+  fs.writeFileSync(filePath, content, "utf-8");
 };
 
-// Generate entities (CRUD modules or static pages)
-config.entities.forEach((entity) => {
-  const { name, crud, route, label } = entity;
-  const folderName = name.toLowerCase();
-  const compFolder = path.join(baseSrc, "components", folderName);
-
-  fs.mkdirSync(compFolder, { recursive: true });
-
-  const pageName = `${folderName}Page.tsx`;
-  const listName = `${folderName}Table.tsx`;
-  const formName = `${folderName}Form.tsx`;
-
-  // Create Page
-  writeFile(
-    path.join(compFolder, pageName),
-    `import React, { useState } from "react";
-import ContentLayout from "../layout/ContentLayout";
-import ${capitalize(folderName)}Form from "./${folderName}Form";
-import ${capitalize(folderName)}Table from "./${folderName}Table";
-
-const ${capitalize(folderName)}Page = () => {
-  const [showForm, setShowForm] = useState(false);
-  const [selected, setSelected] = useState(null);
-
-  return (
-    <ContentLayout
-      title="${label}"
-      subtitle="Gestion de ${label.toLowerCase()}"
-      onAdd={() => {
-        setSelected(null);
-        setShowForm(true);
-      }}
-      addLabel="Ajouter"
-    >
-      <${capitalize(folderName)}Table
-        onEdit={(item) => {
-          setSelected(item);
-          setShowForm(true);
-        }}
-      />
-      {showForm && (
-        <${capitalize(folderName)}Form
-          item={selected}
-          onClose={() => setShowForm(false)}
-        />
-      )}
-    </ContentLayout>
-  );
+// No longer generates component files, just creates folder (optional)
+const generateCRUDComponent = (entity) => {
+  const folder = path.join(projectPath, `@components/${entity.name}`);
+  createDir(folder);
 };
 
-export default ${capitalize(folderName)}Page;
-`
+// For non-CRUD (static/simple) components
+const generateSimpleComponent = (entity) => {
+  const folder = path.join(projectPath, `@components/${entity.name}`);
+  createDir(folder);
+
+  const nameCapital = capitalize(entity.name);
+
+  const content = `import React from 'react';
+
+const ${nameCapital} = () => {
+  return <div>${entity.name} component</div>;
+};
+
+export default ${nameCapital};
+`;
+
+  writeFile(path.join(folder, `${entity.name}.tsx`), content);
+};
+
+// Only one import of generic EntityPage now
+const updateAppRoutes = (entities) => {
+  const imports = `// AUTO-GENERATED IMPORTS START
+import EntityPage from '@components/shared/EntityPage';
+// AUTO-GENERATED IMPORTS END`;
+
+  const routes = entities
+    .map((e) => {
+      const pathRoute = e.route === "/" ? "" : e.route;
+      const element = e.crud
+        ? `<EntityPage entityName="${e.name}" />`
+        : `<${capitalize(e.name)} />`;
+
+      return `  <Route path="${pathRoute}" element={${element}} />`;
+    })
+    .join("\n");
+
+  const appPath = path.join(projectPath, "src", "App.tsx");
+  let appContent = fs.readFileSync(appPath, "utf-8");
+
+  appContent = appContent.replace(
+    /\/\/ AUTO-GENERATED IMPORTS START[\s\S]*?\/\/ AUTO-GENERATED IMPORTS END/,
+    imports
   );
 
-  // Create List/Table
-  if (crud) {
-    writeFile(
-      path.join(compFolder, listName),
-      `import React from "react";
+  appContent = appContent.replace(
+    /{\/\*\s*AUTO-GENERATED ROUTES START\s*\*\/}[\s\S]*?{\/\*\s*AUTO-GENERATED ROUTES END\s*\*\/}/,
+    `{/* AUTO-GENERATED ROUTES START */}\n${routes}\n{/* AUTO-GENERATED ROUTES END */}`
+  );
 
-const ${capitalize(folderName)}Table = ({ onEdit }) => {
-  return <div>Table de ${label}</div>;
+  writeFile(appPath, appContent);
 };
 
-export default ${capitalize(folderName)}Table;
-`
-    );
+// Sidebar route generation (unchanged)
+const updateSidebarRoutes = (entities) => {
+  const routesPath = path.join(projectPath, "src", "routes.ts");
+  let fileContent = fs.readFileSync(routesPath, "utf-8");
 
-    // Create Form
-    writeFile(
-      path.join(compFolder, formName),
-      `import React from "react";
-
-const ${capitalize(folderName)}Form = ({ item, onClose }) => {
-  return <div>Formulaire de ${label}</div>;
-};
-
-export default ${capitalize(folderName)}Form;
-`
-    );
-  } else {
-    // Not CRUD: Only basic page
-    writeFile(
-      path.join(compFolder, `${folderName}Page.tsx`),
-      `import React from "react";
-
-const ${capitalize(folderName)}Page = () => {
-  return <div>${label} content here</div>;
-};
-
-export default ${capitalize(folderName)}Page;
-`
-    );
+  const iconImport = `import { icons } from "lucide-react";`;
+  if (!fileContent.includes(iconImport)) {
+    fileContent = `${iconImport}\n\n${fileContent}`;
   }
-});
 
-// Helper to capitalize component names
-function capitalize(str) {
-  return str.charAt(0).toUpperCase() + str.slice(1);
-}
+  const routeEntries = entities
+    .map((e) => {
+      const label = capitalize(e.name);
+      const pathRoute = e.route;
+      return `  { to: '${pathRoute}', label: '${label}', icon: icons.Tags },`;
+    })
+    .join("\n");
+
+  fileContent = fileContent.replace(
+    /\/\/ AUTO-GENERATED ROUTES START[\s\S]*?\/\/ AUTO-GENERATED ROUTES END/,
+    `// AUTO-GENERATED ROUTES START\n${routeEntries}\n// AUTO-GENERATED ROUTES END`
+  );
+
+  writeFile(routesPath, fileContent);
+};
+
+// === Main generator ===
+const generate = () => {
+  const config = readYAML();
+
+  config.entities.forEach((entity) => {
+    entity.crud
+      ? generateCRUDComponent(entity) // No file creation, only folder if needed
+      : generateSimpleComponent(entity);
+  });
+
+  console.log("✅ Components handled.");
+  updateAppRoutes(config.entities);
+  console.log("✅ App routes updated.");
+  updateSidebarRoutes(config.entities);
+  console.log("✅ Sidebar routes updated.");
+  console.log("✅ Project files generated.");
+};
+
+generate();
